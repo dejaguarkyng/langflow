@@ -35,7 +35,7 @@ const SYNC_TITLE = "Get the full result";
 const STREAM_TITLE = "Stream the result as it runs";
 
 const SYNC_DESC =
-  "The request waits for your flow to finish, then returns the whole answer as one JSON response. Simplest option, and what you want for scripts, automations, and back-end calls. A 403 means a missing or wrong API key, not a permissions problem.";
+  'The request waits for your flow to finish, then returns the whole answer as one JSON response. The text reply is right at the top in "output_text"; the full per-component results are under "outputs". Simplest option, and what you want for scripts, automations, and back-end calls. A 403 means a missing or wrong API key, not a permissions problem.';
 const STREAM_DESC =
   'The answer arrives piece by piece while the flow runs, so you can show it live (like ChatGPT typing) instead of waiting for the end. You get a stream of JSON events, one per "data:" line. Read each event\'s "event" field: text arrives in "add_message" and "token" events, and the run closes with "end". For typed AG-UI events instead, add "stream_protocol": "agui".';
 
@@ -95,15 +95,18 @@ export function getV2WorkflowsCurlCode({
 
   const syncPeek = `
 
-# Returns one JSON object. Your flow's answer is in outputs[<component-id>].content:
+# Returns one JSON object. The text reply is right at the top in "output_text":
 # {
 #   "flow_id": "${flowId}",
+#   "session_id": "<pass this back to continue the same chat>",
 #   "status": "completed",
+#   "output_text": "Hi there! How can I help?",
 #   "outputs": {
-#     "ChatOutput-abc": { "type": "message", "status": "completed", "content": "Hi there! How can I help?" }
+#     "ChatOutput-abc": { "type": "message", "content": "Hi there! How can I help?" }
 #   }
 # }
-# (A failed run still returns HTTP 200, with status "failed" and a populated "errors" array.)`;
+# (output_text is null when a flow has no single text output; read "outputs" then.
+#  A failed run still returns HTTP 200, with status "failed" and a populated "errors" array.)`;
 
   const streamPeek = `
 
@@ -162,9 +165,8 @@ response = requests.post(url, json=payload, headers=headers)
 response.raise_for_status()
 result = response.json()
 
-# Your flow's answer is in outputs[<component-id>].content:
-for output in result["outputs"].values():
-    print(output["content"])`;
+# The text reply is right at the top level:
+print(result["output_text"])`;
 
   const stream = `${streamImports}
 
@@ -224,10 +226,8 @@ const response = await fetch("${url}", {
 });
 const result = await response.json();
 
-// Your flow's answer is in outputs[<component-id>].content:
-for (const output of Object.values(result.outputs)) {
-  console.log(output.content);
-}`;
+// The text reply is right at the top level:
+console.log(result.output_text);`;
 
   const stream = `const payload = ${JSON.stringify(buildBody(flowId, inputValue, tweaks, { mode: "stream" }), null, 2)};
 
